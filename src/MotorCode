@@ -1,0 +1,199 @@
+#include <AccelStepper.h> // Include AccelStepper Library
+#include <MultiStepper.h> // Include AccelStepper Library
+
+// Create the steppers and define the pins they will use
+AccelStepper stepper1(AccelStepper::DRIVER, 9, 10);
+AccelStepper stepper2(AccelStepper::DRIVER, 11, 12);
+// Create the multistepper object
+MultiStepper steppers;
+
+// Create Variables Used
+static float current_speed = 0;         // Holds current motor speed in steps/second
+static float current_speed2 = 0;        // Holds current motor2 speed in steps/second
+static int analog_read_counter = 3000;  // Counts down to 0 to fire analog read for stepper 1
+static int analog_read_counter2 = 1500; // Counts down to 0 to fire analog read for stepper 2
+static int analog_value = 0;            // Holds potentiometer1 raw analog value
+static int analog_value2 = 0;           // Holds potentiometer2 raw analog value
+int MAX_SPEED = 400;                    // Max speed that the motor runs at
+int MIN_SPEED = 75;                     // Min speed that the motor runs at
+
+
+
+void setup() {
+  // The only AccelStepper value we have to set here is the max speeed
+  stepper1.setMaxSpeed(400);
+  stepper2.setMaxSpeed(400);
+  // Add steppers 1 and 2 to the multistepper object
+  steppers.addStepper(stepper1);
+  steppers.addStepper(stepper2);
+  // Define the limit switch pins as inputs
+  pinMode(8,INPUT);
+  pinMode(13,INPUT);
+  // Call the homing routine
+  initializeMotors();
+}
+
+void loop() {
+  pollStepper1();          // Poll potentiometer1 to adjust current speed
+  stepper1.runSpeed();     // Giver Stepper 1 a chance to step if it needs
+  stepper2.runSpeed();     // Giver Stepper 2 a chance to step if it needs
+  pollStepper2();          // Poll potentiometer 1 to adjust current speed   
+  stepper1.runSpeed();     // Giver Stepper 1 a chance to step if it needs
+  stepper2.runSpeed();     // Giver Stepper 2 a chance to step if it needs
+}
+
+  // Custom function that polls the endstops for their staus (requires the stepper number to be given to it)
+  int pollEndstops(int motor) {   
+    int endStopStatus;                                                    // Create integer called endStopStatus
+    if (motor == 1 && digitalRead(8) == LOW) {                            // If stepper 1's bottom end stop is pressed
+      endStopStatus = 1;                                                  
+    } else if(motor == 1 && stepper1.currentPosition() <= -5000) {        // If stepper 1 has reached the top of the board
+      endStopStatus = 2;                                      
+    } else if(motor == 2 && digitalRead(13) == LOW) {                     // If stepper 2's bottom end stop is pressed
+      endStopStatus = 1; 
+    } else if(motor == 2 && stepper2.currentPosition() >= 5000) {         // If stepper 2 has reached the top of the board
+      endStopStatus = 2;
+    } else {
+      endStopStatus = 0;                                                  // If none of the above are true, bar hasn't reached any endstops
+    }
+    return endStopStatus;                                                 // Send the value of endStopStatus back to the pollStepper functions
+  }
+
+  // Custom function that polls potentiometer 1 and sets the motor's speed and direction accordingly
+  void pollStepper1() {
+    if (analog_read_counter == 0) {                  // If time to poll the potentiometer
+      int Stepper1EndStopStatus = pollEndstops(1);   // Determine the end stop status
+      switch (Stepper1EndStopStatus) {  
+        case 0:                                      // If no endstops are activated
+          analog_read_counter = 3000;                // Reset cycle counter
+          analog_value = analogRead(1);              // Now read the pot (from 0 to 1023)
+          // Give the stepper a chance to step if it needs to
+          stepper1.runSpeed();
+          stepper2.runSpeed();
+          
+          if (analog_value < 470) {   // Check if potentiometer is in down range
+            current_speed = ((-1*(1-analog_value/470.0) * (MAX_SPEED - MIN_SPEED)) - MIN_SPEED);     //  And scale the pot's value from min to max speeds
+            stepper1.setSpeed(current_speed);                                                        // Update the stepper to run at this new speed
+          } else if(analog_value > 550) { //Check if potentiometer is in up range
+              current_speed = ((((analog_value-551)/472.0) * (MAX_SPEED - MIN_SPEED)) + MIN_SPEED);
+              stepper1.setSpeed(current_speed);
+          } else {
+            stepper1.setSpeed(0);  // Set motor speed to zero if potentiometer is in dead zone
+          }
+        break;
+        
+        case 1: // If bottom endstop is activated
+          analog_read_counter = 3000;             // Reset cycle counter
+          analog_value = analogRead(1);           // Now read the pot (from 0 to 1023)
+          stepper2.runSpeed();                    // Give stepper2 a chance to turn if it needs to
+
+          if (analog_value > 470) {
+            current_speed = 0;
+            stepper1.setSpeed(current_speed);
+          } else {
+              current_speed = ((-1*(1-analog_value/470.0) * (MAX_SPEED - MIN_SPEED)) - MIN_SPEED);     //  And scale the pot's value from min to max speeds
+              stepper1.setSpeed(current_speed);
+          }  
+          break;
+        
+        case 2: // If top endstop is activated
+          analog_read_counter = 3000;
+          analog_value = analogRead(1);
+          stepper2.runSpeed();
+          if (analog_value < 550) {
+            current_speed = 0;
+            stepper1.setSpeed(current_speed);
+          } else {
+             current_speed = ((((analog_value-551)/472.0) * (MAX_SPEED - MIN_SPEED)) + MIN_SPEED);
+             stepper1.setSpeed(current_speed);
+          }     
+          break;
+    }
+    } else {
+      analog_read_counter--;
+    }
+  }
+
+  // Poll Potentiometer 2 and set the motor's speed and direction accordingly
+  void pollStepper2() {
+    if (analog_read_counter2 == 0) {
+      int Stepper2EndStopStatus = pollEndstops(2);     // Check Stepper 2's Endstop conditions
+      switch (Stepper2EndStopStatus) {
+        case 0:                                    // If no endstops are activated
+          analog_read_counter2 = 3000;            // Reset cycle counter
+          analog_value2 = analogRead(0);          // Now read the pot (from 0 to 1023)
+          // Give the stepper a chance to step if it needs to
+          stepper1.runSpeed();
+          stepper2.runSpeed();
+          
+          if (analog_value2 < 470) {   // Check if potentiometer is in down range
+            current_speed2 = ((-1*(1-analog_value2/470.0) * (MAX_SPEED - MIN_SPEED)) - MIN_SPEED);     //  And scale the pot's value from min to max speeds
+            stepper2.setSpeed(current_speed2);                                                        // Update the stepper to run at this new speed
+          } else if(analog_value2 > 550) { //Check if potentiometer is in up range
+              current_speed2 = ((((analog_value2-551)/472.0) * (MAX_SPEED - MIN_SPEED)) + MIN_SPEED);
+              stepper2.setSpeed(current_speed2);
+          } else {
+            stepper2.setSpeed(0);  // Set motor speed to zero if potentiometer is in dead zone
+          } 
+        break;
+        
+        case 1: // If bottom endstop is activated
+          analog_read_counter2 = 3000;             // Reset cycle counter
+          analog_value2 = analogRead(0);           // Now read the pot (from 0 to 1023)
+          stepper1.runSpeed();                    // Give stepper1 a chance to turn if it needs to
+
+          if (analog_value2 < 550) {
+            current_speed2 = 0;
+            stepper2.setSpeed(current_speed2);
+          } else {
+              current_speed2 = ((((analog_value2-551)/472.0) * (MAX_SPEED - MIN_SPEED)) + MIN_SPEED);
+              stepper2.setSpeed(current_speed2);
+            } 
+        break;
+        
+        case 2: // If top endstop is activated
+          analog_read_counter2 = 3000;
+          analog_value2 = analogRead(0);
+          stepper1.runSpeed();
+
+          if (analog_value2 > 470) {
+            current_speed2 = 0;
+            stepper2.setSpeed(current_speed2);
+          } else {
+              current_speed2 = ((-1*(1-analog_value2/470.0) * (MAX_SPEED - MIN_SPEED)) - MIN_SPEED);     //  And scale the pot's value from min to max speeds
+              stepper2.setSpeed(current_speed2);                                                        // Update the stepper to run at this new speed
+          }
+        break;
+    }
+    } else {
+      analog_read_counter2--;
+    }
+  }
+
+  // Custom function to home the motors right when game is started
+  void initializeMotors() {
+    stepper1.setSpeed(300);  // Set the motors' speeds
+    stepper2.setSpeed(-300);
+    while (!(digitalRead(8) == LOW && digitalRead(13) == LOW)) {
+      stepper1.runSpeed();   // Run the bar down the board
+      stepper2.runSpeed();
+      if (digitalRead(8) == LOW) {
+        stepper1.setSpeed(0);   // Turn off motor if endstop is hit
+      } else if (digitalRead(13) == LOW) {
+        stepper2.setSpeed(0);   // Turn off motor if endstop is hit
+      }
+    }
+    delay(1000);   // Pause 1 second
+    stepper1.setCurrentPosition(0);    // Set stepper 1's current position to zero
+    stepper2.setCurrentPosition(0);    // Set stepper 2's current position to zero
+    long positions[2];    // Create matrix of target positions for bar to reset
+    positions[0] = -2000;
+    positions[1] = 800;
+    steppers.moveTo(positions);  // Set target positions for multistepper object
+    while (!(stepper1.distanceToGo() == 0 && stepper2.distanceToGo() == 0)) {
+      steppers.run();  // Run the bar back up to the starting position
+    }
+    delay(1000);  // Pause 1 second
+    stepper1.setSpeed(0);  // Set the motor speeds to zero
+    stepper2.setSpeed(0);  // Set the motor speeds to zero
+  }
