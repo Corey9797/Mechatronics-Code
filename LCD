@@ -1,1 +1,137 @@
+#include <U8g2lib.h>
+#include <U8x8lib.h>
+
+#include <U8g2lib.h>
+#include <U8x8lib.h>
+
+// Define the pins used for I2C clock (SCL) and data (SDA)
+#define PIN_SDA   A4
+#define PIN_SCL   A5
+
+const int IncbuttonPin = 12; //button used to increment score 
+
+const int LIFE_LINE_NO = 4;
+const int GAMES_LINE_NO = 7;
+const int TOT_LINE_NO = 10;
+
+
+// Create a global instance of the display object (u8x8)
+U8X8_SSD1327_EA_W128128_HW_I2C u8x8(U8X8_PIN_NONE, PIN_SCL, PIN_SDA);
+//U8G2_SSD1327_EA_W128128_1_HW_I2C(rotation, [reset [, PIN_SCL, PIN_SDA]]);
+
+
+
+//class U8X8_SSD1327_EA_W128128_HW_I2C: public U8x8 {
+  //public:U8X8_SSD1327_EA_W128128_HW_I2C(U8X8_PIN_NONE, PIN_SCL, PIN_SDA);
+//}
+/*
+* Setup. Called once when the Arduino starts up
+ */
+void setup(void)
+
+{
+  const int INIT_SCREEN_COLUMN = 3;
+  int score = 100;
+  // Setup the rest of the system
+  
+
+  // Initialize the display module
+  u8x8.begin();
+  //u8x8.setFont(u8x8_font_px437wyse700b_2x2_r);
+    u8x8.setFont(u8x8_font_lucasarts_scumm_subtitle_o_2x2_f);
+  u8x8.drawString(3 , 2,  "ALOHA");
+  delay (100);
+  u8x8.drawString(3 , 4,  "ITS");
+  delay (100); 
+  u8x8.drawString(3 , 7,  "PARTY");
+  delay (100);
+  u8x8.drawString(3 , 10,  "TIME");
+  delay (5000); 
+  
+   u8x8.clear();
+  //u8x8.setFont(u8x8_font_px437wyse700b_2x2_r);
+    u8x8.setFont(u8x8_font_inr21_2x4_f);
+  u8x8.drawString(0, LIFE_LINE_NO, " LIFE:5 ");
+
+   u8x8.clear();
+    //u8x8.setFont(u8x8_font_px437wyse700b_2x2_r);
+  
+  pinMode( IncbuttonPin , INPUT_PULLUP );
+  Serial.begin(9600);
+
+  
+}
+
+int lastIncbuttonState = HIGH;     // previous state of the button
+int buttonpushcounter1 = 0; // counter for number of button presses
+unsigned long previousMillis = 0;
+const long interval = 5000;
+int roundnumber = 1;
+int totalscore = 0;
+
+void loop(void) //sensor states
+{
+int IncbuttonState = 1;
+int score = 100*roundnumber;
+
+  u8x8.drawString(3, 3, "ROUND");
+    u8x8.drawString(5, 7, u8x8_u16toa(roundnumber,2));
+    delay (5000);
+  u8x8.clear();
+  u8x8.setFont(u8x8_font_inr21_2x4_f);
+  u8x8.drawString(1, 1, " SCORE"); 
+  u8x8.drawString(4, 5, u8x8_u16toa(score,4));
+    u8x8.setFont(u8x8_font_lucasarts_scumm_subtitle_r_2x2_r);
+   u8x8.drawString(0, 10, " LIFE:5 ");
+  delay (2000);
+  while (IncbuttonState==1){
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= interval && score > 0) {
+    // save the last time you blinked the LED
+    previousMillis = currentMillis;
+    score = score-5;
+    u8x8.setFont(u8x8_font_inr21_2x4_f);
+    u8x8.drawString(4, 5, u8x8_u16toa(score,4));
+    
+ 
+   }
+   IncbuttonState = digitalRead(IncbuttonPin);
+  }
+
+//  for (int x = 0; x < 10; x++){
+ //  u8x8.setFont(u8x8_font_inr21_2x4_f);
+//  u8x8.drawString(5, 5, u8x8_u16toa(score,3));
+//   u8x8.setInverseFont(1);
+//  u8x8.drawString(5, 5, u8x8_u16toa(score,3));
+//   u8x8.setInverseFont(0);
+//    u8x8.drawString(5, 5, "   ");
+//    u8x8.drawString(5, 5, u8x8_u16toa(score,4));
+ 
+
+  for (int x = 0; x < 10; x++){
+   u8x8.setFont(u8x8_font_inr21_2x4_f);
+  u8x8.drawString(4, 5, u8x8_u16toa(score,4));
+   u8x8.setInverseFont(1);
+  u8x8.drawString(4, 5, u8x8_u16toa(score,4));
+   u8x8.setInverseFont(0);
+  }
+  
+  
+  u8x8.clear();
+    u8x8.drawString(3, 1, "TOTAL");
+    u8x8.drawString(3, 5, "SCORE:");
+    u8x8.drawString(3, 9, u8x8_u16toa(totalscore,5));
+    delay (2000);
+    for (int y = 0; y <= score; y=y+5){
+      u8x8.drawString(3, 9, u8x8_u16toa(totalscore+y,5));
+      
+    }
+    totalscore = score + totalscore;
+    u8x8.clear();
+    roundnumber = roundnumber + 1;
+    
+  }
+  
+
+
 
